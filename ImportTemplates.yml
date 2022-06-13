@@ -1,0 +1,9 @@
+---
+- name: Importing Ansible Tower Job templates from one tower to another
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  ignore_errors: no
+  ignore_unreachable: no
+  roles:
+    - ./ImportTemplates

@@ -1,0 +1,95 @@
+---
+# vars file for ImportTemplates
+
+TOWER_USER: "{{ lookup('env', 'T_USERNAME') }}"
+TOWER_PASSWORD: "{{ lookup('env', 'T_PASSWORD') }}"
+
+target_orgzn_id: "{{ target_organization.json.results[0].id }}"
+
+organization_req_body:
+  "name": "{{ source_organization.json.name }}"
+  "description": "{{ source_organization.json.description }}"
+
+project_req_body:
+  "name": "{{ source_project.json.name }}"
+  "description": "{{ source_project.json.description }}"
+  "organization": "{{ target_orgzn_id }}"
+  "scm_type": "git"
+  "scm_url": "{{ source_project.json.scm_url }}"
+  "scm_branch": "{{ source_project.json.scm_branch }}"
+  "scm_refspec": "{{ source_project.json.scm_refspec }}"
+  "credential": "{{ bitbucket_cred_id }}"
+  "scm_clean": "{{ source_project.json.scm_clean }}"
+  "scm_delete_on_update": "{{ source_project.json.scm_delete_on_update }}"
+  "scm_update_on_launch": "{{ source_project.json.scm_update_on_launch }}"
+  "allow_override": "{{ source_project.json.allow_override }}"
+  "scm_update_cache_timeout": "{{ source_project.json.scm_update_cache_timeout }}"
+  "custom_virtualenv": "{{ source_project.json.custom_virtualenv }}"
+
+inventory_req_body:
+  "name": "{{ source_template.json.summary_fields.inventory.name }}"
+  "organization": "{{ target_orgzn_id }}"
+
+host_req_body:
+  "name": "{{ item.name }}"
+  "description": "{{ item.description }}"
+  "inventory": "{{ target_inventory_id }}"
+  "variables": "{{ item.variables }}"
+
+#credential_req_body:
+#  "name": "{{ item.item.name }}"
+#  "credential_type": "{{ item.json.credential_type }}"
+#  "organization": ""
+#  "inputs": {
+#              "password": "{{ item.json.inputs.password }}",
+#              "username": "{{ item.json.inputs.username }}"
+#            }
+
+assign_credential_req_body:
+  "name": "{{ item.item.name }}"
+  "credential_type": "{{ item.json.credential_type }}"
+
+template_req_body:
+  "name": "'{{ template_name }}"
+  "description": "{{ source_template.json.description }}"
+  "organization": "{{ target_orgzn_id }}"
+  "job_type": "{{ source_template.json.job_type }}"
+  "inventory": "{{ target_inventory_id }}"
+  "project": "{{ target_project_id }}"
+  "credentials": ""
+  "playbook": "{{ source_template.json.playbook }}"
+  "verbosity": 2
+  "scm_branch": "{{ source_template.json.scm_branch }}"
+  "forks": "{{ source_template.json.forks }}"
+  "limit": "{{ source_template.json.limit }}"
+  "extra_vars": "{{ source_template.json.extar_vars }}"
+  "job_tags": "{{ source_template.json.job_tags }}"
+  "skip_tags": "{{ source_template.json.skip_tags }}"
+  "use_fact_cache": "{{ source_template.json.use_fact_cache }}"
+  "allow_simultaneous": "{{ source_template.json.allow_simultaneous }}"
+  "become_enabled": "{{ source_template.json.become_enabled }}"
+  "survey_enabled": "{{ source_template.json.survey_enabled }}"
+  "custom_virtualenv": "{{ source_template.json.custom_virtualenv }}"
+  "ask_job_type_on_launch": "{{ source_template.json.ask_job_type_on_launch }}"
+  "ask_inventory_on_launch": "{{ source_template.json.ask_inventory_on_launch }}"
+  "ask_scm_branch_on_launch": "{{ source_template.json.ask_scm_branch_on_launch }}"
+  "ask_credential_on_launch": "{{ source_template.json.ask_credential_on_launch }}"
+  "ask_limit_on_launch": "{{ source_template.json.ask_limit_on_launch }}"
+  "ask_verbosity_on_launch": "{{ source_template.json.ask_verbosity_on_launch }}"
+  "ask_tags_on_launch": "{{ source_template.json.ask_tags_on_launch }}"
+  "ask_skip_tags_on_launch": "{{ source_template.json.ask_skip_tags_on_launch }}"
+  "ask_variables_on_launch": "{{ source_template.json.ask_variables_on_launch }}"
+
+template_schedule_body:
+  "name": "{{ item.name }}"
+  "description": "{{ item.description }}"
+  "extra_data": "{{ item.extra_data }}"
+  "rrule": "{{ item.rrule }}"
+  "enabled": "{{ item.enabled }}"
+
+template_survey_req_body:
+  "description": "{{ template_survey.json.description }}"
+  "name": "{{ template_survey.json.name }}"
+  "spec": "{{ template_survey.json.spec }}"
+
+

@@ -1,0 +1,335 @@
+---
+# tasks file for ImportTemplates
+- name: Get the project, inventory, host, credential details from the source template
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ source_tower }}/api/v2/job_templates/{{ template_name }}/"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: source_template
+####
+- name: Get the source template schedules
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ source_tower }}/api/v2/job_templates/{{ source_template.json.id }}/schedules/"
+    status_code: 200,201
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: {}
+  register: source_template_schedules
+####
+- name: Get the source template survey information
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ source_tower }}/api/v2/job_templates/{{ source_template.json.id }}/survey_spec/"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: template_survey
+####
+- name: Get the organization details from the target server
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/organizations?name={{ organization_name | urlencode }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: {}
+  register: target_organization
+####
+- debug:
+    msg: "Target organization ID: {{ target_organization.json.results[0].id }}"
+####
+- name: Get the BitBucket creds on the target server
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/credentials?name={{ bitbucket_creds_name }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: {}
+  register: target_bitbucket_creds
+####
+- set_fact:
+    bitbucket_creds_id: "{{ target_bitbucket_creds.json.results[0].id }}"
+####
+- name: Get the Project details from the source server
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ source_tower }}/api/v2/projects/{{ source_template.json.project }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: source_project
+####
+- name: Get the Project details from the target tower when it already exists
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/projects?name={{ source_template.json.name }}&organization={{ target_orgzn_id }}"
+    status_code: 200,201
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: check_target_project
+####
+- debug: var=check_target_project.json.results
+####
+- debug:
+    msg: "Project is not available on Target Tower: {{ target_tower }}"
+  when: check_target_project.json.count == 0
+####
+- debug:
+    msg: "Project is already available on Target Tower: {{ target_tower }} and ID: {{ check_target_project.json.results[0].id }}"
+  when: check_target_project.json.count != 0
+####
+- name: Create a project on the target tower
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/projects/"
+    status_code: 201,400
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ project_req_body | to_json }}"
+  register: target_project
+  when: check_target_project.json.count == 0
+####
+- set_fact:
+    target_project_id: "{{ check_target_project.json.results[0].id }}"
+  when: check_target_project.json.count != 0
+####
+- set_fact:
+    target_project_id: "{{ target_project.json.id }}"
+  when: target_project.status is defined and target_project.status == 201
+####
+- debug:
+    msg: "Project is created on the Target Tower: {{ target_tower }} and ID: {{ target_project_id }}"
+  when: target_project.status is defined and target_project.status == 201
+####
+- name: Wait
+  wait_for:
+    timeout: 20
+####
+- name: Get the inventory details from the target tower if it already exists
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/inventories?name={{ source_template.json.summary_fields.inventory.name}}&organization={{ target_orgzn_id }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: check_target_inventory
+####
+- debug: var=check_target_inventory.json.results
+####
+- debug:
+    msg: "Inventory is not available on target tower: {{ target_tower }}"
+  when: check_target_inventory.json.count == 0
+####
+- debug:
+    msg: "Inventory is already available on Target Tower {{ target_tower }} and ID: {{ check_target_inventory.json.results[0].id }}"
+  when: check_target_inventory.json.count != 0
+####
+- name: Create an inventory on Target Tower
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/inventories/"
+    status_code: 201,400
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ inventory_req_body | to_json }}"
+  register: target_inventory
+  when: check_target_inventory.json.count == 0
+####
+- set_fact:
+    target_inventory_id: "{{ check_target_inventory.json.results[0].id }}"
+  when: check_target_inventory.json.count != 0
+####
+- set_fact:
+    target_inventory_id: "{{ target_inventory.json.id }}"
+  when: target_inventory.status is defined and target_inventory.status == 201
+####
+- debug:
+    msg: "Inventory is created on Target Tower: {{ target_tower }} and ID : {{ target_inventory_id }}"
+  when: target_inventory.status is defined and target_inventory.status == 201
+####
+- name: Get the host details from the source tower
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ source_tower }}/api/v2/inventories/{{ source_template.json.summary_fields.inventory.id }}/hosts"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: source_host
+####
+- name: Create hosts on the target tower
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/inventories/{{ target_inventory.id }}/hosts/"
+    status_code: 201,400
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ host_req_body | to_json }}"
+  register: hosts
+  with_items: "{{ source_host.json.results | list }}"
+####
+- name: Wait
+  wait_for:
+    timeout: 5
+####
+- name: Get the template details from the target tower when it already exists
+  uri:
+    force_basic_auth: yes
+    method: GET
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/job_templates/?name={{ template_name }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    body: {}
+  register: check_target_template
+####
+- debug:
+    msg: "Template is not available on Target Tower {{ target_tower }}"
+  when: check_target_project.json.count == 0
+####
+- debug:
+    msg: "Template is already available on Target Tower {{ target_tower }} and ID : {{ check_target_template.json.results[0].id }}"
+  when: check_target_template.json.count != 0
+####
+- name: Create a template on the Target Tower
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/job_templates/"
+    status_code: 201,400
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ template_req_body | to_json }}"
+  register: target_template
+  when: check_target_template.json.count == 0
+####
+- set_fact:
+    target_template_id: "{{ check_target_template.json.results[0].id }}"
+  when: check_target_template.json.count != 0
+####
+- set_fact: 
+    target_template_id: "{{ target_template.json.id }}"
+  when: target_template.status is defined and target_template.status == 201
+####
+- debug:
+    msg: "Template is created on Target Tower : {{ target_tower }} and ID : {{ target_template_id }}"
+  when: target_template.status is defined and target_template.status == 201
+####
+- name: Apply the shedules for target template
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/job_templates/{{ target_template_id }}/schedules/"
+    status_code: 200,201
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ template_schedule_body | to_json }}"
+  with_items: "{{ source_template_schedules.json.results | list }}"
+####
+- name: Apply the survey for target template
+  uri:
+    force_basic_auth: yes
+    method: POST
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/job_templates/{{ target_template_id }}/survey_spec/"
+    status_code: 200,201
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: "{{ template_survey_req_body | to_json }}"
+  register: template_survey_apply
+####
+- name: Unmap BitBucket creds for the target project
+  uri:
+    force_basic_auth: yes
+    method: PATCH
+    user: "{{ TOWER_USER }}"
+    password: "{{ TOWER_PASSWORD }}"
+    url: "{{ target_tower }}/api/v2/projects/{{ target_project_id }}"
+    status_code: 200
+    validate_certs: false
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body: '{
+             "name": "{{ target_project.json.name }}",
+             "credential": ""
+           }'
+  when: target_project.status is defined and target_project.status == 201
+
+
+
+
+  
+
+
+
